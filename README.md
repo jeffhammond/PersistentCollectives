@@ -1,4 +1,4 @@
-RMAColl
-=======
+PersistentMPI
+=============
 
-Implementing MPI-like collective operations using RMA to exploit persistence
+Implementing MPI-like operations using RMA to exploit persistence.
