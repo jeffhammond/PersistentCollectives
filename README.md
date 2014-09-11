@@ -1,4 +1,4 @@
 PersistentMPI
 =============
 
-Implementing MPI-like operations using RMA to exploit persistence.
+Implementing MPI-like operations to exploit persistence.
