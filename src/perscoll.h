@@ -3,7 +3,7 @@
 
 #include <mpi.h>
 
-typedef PCMPI_Request void*;
+typedef void* PCMPI_Request;
 
 int PCMPI_Test(PCMPI_Request *request, int * flag, MPI_Status *status);
 int PCMPI_Wait(PCMPI_Request *request, MPI_Status *status);

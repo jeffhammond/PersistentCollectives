@@ -11,4 +11,4 @@ TESTS += test/test_assert \
 XFAIL_TESTS += test/test_assert \
 			   # end
 
-test_test_assert_x_LDADD = libperscoll.la
+test_test_assert_LDADD = libperscoll.la

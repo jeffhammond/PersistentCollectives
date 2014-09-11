@@ -9,10 +9,10 @@ lib_LTLIBRARIES = libperscoll.la
 
 noinst_LTLIBRARIES = libperscolli.la
 
-libperscoll_la_SOURCES = 	src/collectives_x.c \
-							src/vcollectives_x.c \
-							src/neighborhood_collectives_x.c \
-							src/reductions_x.c \
+libperscoll_la_SOURCES = 	src/coll.c \
+							src/vcoll.c \
+							src/ncoll.c \
+							src/testwait.c \
 							src/utils.c
 
 libperscoll_la_LDFLAGS = -version-info $(libperscoll_abi_version)

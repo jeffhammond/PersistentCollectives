@@ -1,5 +1,6 @@
 #include "internal.h"
 
+#if 0
 typedef enum { GATHERV, SCATTERV, ALLGATHERV, ALLTOALLV, ALLTOALLW } collective_t;
 typedef enum { NEIGHBORHOOD_ALLTOALLW, NONBLOCKING_BCAST, P2P, RMA } method_t;
 
@@ -329,3 +330,4 @@ int MPIX_Alltoallw_x(const void *sendbuf, const MPI_Count sendcounts[], const MP
                              recvbuf, -1 /* recvcount */, recvcounts, rdispls, MPI_DATATYPE_NULL, recvtypes,
                              -1 /* root */, comm);
 }
+#endif
