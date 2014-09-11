@@ -1,12 +1,9 @@
-#include "bigmpi_impl.h"
-
-/* The displacements vector cannot be represented in the existing set of MPI-3
-   functions because it is an integer rather than an MPI_Aint. */
+#include "internal.h"
 
 typedef enum { GATHERV, SCATTERV, ALLGATHERV, ALLTOALLV, ALLTOALLW } collective_t;
 typedef enum { NEIGHBORHOOD_ALLTOALLW, NONBLOCKING_BCAST, P2P, RMA } method_t;
 
-int BigMPI_Collective(collective_t coll, method_t method,
+int PersColl_Collective(collective_t coll, method_t method,
                       const void *sendbuf,
                       const MPI_Count sendcount, const MPI_Count sendcounts[],
                       const MPI_Aint senddispls[],
@@ -23,10 +20,10 @@ int BigMPI_Collective(collective_t coll, method_t method,
     int is_intercomm;
     MPI_Comm_test_inter(comm, &is_intercomm);
     if (is_intercomm)
-        BigMPI_Error("BigMPI does not support intercommunicators yet.\n");
+        PersColl_Error("PersColl does not support intercommunicators yet.\n");
 
     if (sendbuf==MPI_IN_PLACE)
-        BigMPI_Error("BigMPI does not support in-place in the v-collectives.  Sorry. \n");
+        PersColl_Error("PersColl does not support in-place in the v-collectives.  Sorry. \n");
 
     int size, rank;
     MPI_Comm_size(comm, &size);
@@ -45,12 +42,12 @@ int BigMPI_Collective(collective_t coll, method_t method,
         switch(coll) {
             case ALLTOALLW:
                 assert(root == -1);
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        0 /* splat count */, 0, sendcounts,
                                        0 /* splat type */, 0, sendtypes,
                                        0 /* zero displs */, senddispls,
                                        newsendcounts, newsendtypes, newsdispls);
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        0 /* splat count */, 0, recvcounts,
                                        0 /* splat type */, 0, recvtypes,
                                        0 /* zero displs */, recvdispls,
@@ -58,12 +55,12 @@ int BigMPI_Collective(collective_t coll, method_t method,
                 break;
             case ALLTOALLV:
                 assert(root == -1);
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        0 /* splat count */, 0, sendcounts,
                                        1 /* splat type */, sendtype, NULL,
                                        0 /* zero displs */, senddispls,
                                        newsendcounts, newsendtypes, newsdispls);
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        0 /* splat count */, 0, recvcounts,
                                        1 /* splat type */, recvtype, NULL,
                                        0 /* zero displs */, recvdispls,
@@ -71,12 +68,12 @@ int BigMPI_Collective(collective_t coll, method_t method,
                 break;
             case ALLGATHERV:
                 assert(root == -1);
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        1 /* splat count */, sendcount, NULL,
                                        1 /* splat type */, sendtype, NULL,
                                        1 /* zero displs */, NULL,
                                        newsendcounts, newsendtypes, newsdispls);
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        0 /* splat count */, 0, recvcounts,
                                        1 /* splat type */, recvtype, NULL,
                                        0 /* zero displs */, recvdispls,
@@ -84,20 +81,20 @@ int BigMPI_Collective(collective_t coll, method_t method,
                 break;
             case GATHERV:
                 assert(root != -1);
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        1 /* splat count */, sendcount, NULL,
                                        1 /* splat type */, sendtype, NULL,
                                        1 /* zero displs */, NULL,
                                        newsendcounts, newsendtypes, newsdispls);
                 /* Gatherv: Only the root receives data. */
                 if (rank==root) {
-                    BigMPI_Convert_vectors(size,
+                    PersColl_Convert_vectors(size,
                                            0 /* splat count */, 0, recvcounts,
                                            1 /* splat type */, recvtype, NULL,
                                            0 /* zero displs */, recvdispls,
                                            newrecvcounts, newrecvtypes, newrdispls);
                 } else {
-                    BigMPI_Convert_vectors(size,
+                    PersColl_Convert_vectors(size,
                                            1 /* splat count */, 0, NULL,
                                            1 /* splat type */, MPI_DATATYPE_NULL, NULL,
                                            1 /* zero displs */, NULL,
@@ -108,31 +105,31 @@ int BigMPI_Collective(collective_t coll, method_t method,
                 assert(root != -1);
                 /* Scatterv: Only the root sends data. */
                 if (rank==root) {
-                    BigMPI_Convert_vectors(size,
+                    PersColl_Convert_vectors(size,
                                            0 /* splat count */, 0, sendcounts,
                                            1 /* splat type */, sendtype, NULL,
                                            0 /* zero displs */, senddispls,
                                            newsendcounts, newsendtypes, newsdispls);
                 } else {
-                    BigMPI_Convert_vectors(size,
+                    PersColl_Convert_vectors(size,
                                            1 /* splat count */, 0, NULL,
                                            1 /* splat type */, MPI_DATATYPE_NULL, NULL,
                                            1 /* zero displs */, NULL,
                                            newsendcounts, newsendtypes, newsdispls);
                 }
-                BigMPI_Convert_vectors(size,
+                PersColl_Convert_vectors(size,
                                        1 /* splat count */, recvcount, NULL,
                                        1 /* splat type */, recvtype, NULL,
                                        1 /* zero displs */, NULL,
                                        newrecvcounts, newrecvtypes, newrdispls);
                 break;
             default:
-                BigMPI_Error("Invalid collective chosen. \n");
+                PersColl_Error("Invalid collective chosen. \n");
                 break;
         }
 
         MPI_Comm comm_dist_graph;
-        BigMPI_Create_graph_comm(comm, root, &comm_dist_graph);
+        PersColl_Create_graph_comm(comm, root, &comm_dist_graph);
         rc = MPI_Neighbor_alltoallw(sendbuf, newsendcounts, newsdispls, newsendtypes,
                                     recvbuf, newrecvcounts, newrdispls, newrecvtypes, comm_dist_graph);
         MPI_Comm_free(&comm_dist_graph);
@@ -243,7 +240,7 @@ int BigMPI_Collective(collective_t coll, method_t method,
                 }
                 break;
             default:
-                BigMPI_Error("Invalid collective chosen. \n");
+                PersColl_Error("Invalid collective chosen. \n");
                 break;
         }
 
@@ -274,7 +271,7 @@ int BigMPI_Collective(collective_t coll, method_t method,
 
     } else {
         /* This should be unreachable... */
-        BigMPI_Error("Invalid method for v-collectives chosen. \n");
+        PersColl_Error("Invalid method for v-collectives chosen. \n");
     }
     return rc;
 }
@@ -284,7 +281,7 @@ int MPIX_Gatherv_x(const void *sendbuf, MPI_Count sendcount, MPI_Datatype sendty
                    int root, MPI_Comm comm)
 {
     method_t method = P2P;
-    return BigMPI_Collective(GATHERV, method,
+    return PersColl_Collective(GATHERV, method,
                              sendbuf, sendcount, NULL, NULL, sendtype, NULL,
                              recvbuf, -1 /* recvcount */, recvcounts, rdispls, recvtype, NULL,
                              root, comm);
@@ -295,7 +292,7 @@ int MPIX_Allgatherv_x(const void *sendbuf, MPI_Count sendcount, MPI_Datatype sen
                       MPI_Comm comm)
 {
     method_t method = P2P;
-    return BigMPI_Collective(ALLGATHERV, method,
+    return PersColl_Collective(ALLGATHERV, method,
                              sendbuf, sendcount, NULL, NULL, sendtype, NULL,
                              recvbuf, -1 /* recvcount */, recvcounts, rdispls, recvtype, NULL,
                              -1 /* root */, comm);
@@ -305,7 +302,7 @@ int MPIX_Scatterv_x(const void *sendbuf, const MPI_Count sendcounts[], const MPI
                     void *recvbuf, MPI_Count recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm)
 {
     method_t method = P2P;
-    return BigMPI_Collective(SCATTERV, method,
+    return PersColl_Collective(SCATTERV, method,
                              sendbuf, -1 /* sendcount */, sendcounts, sdispls, sendtype, NULL,
                              recvbuf, recvcount, NULL, NULL, recvtype, NULL,
                              root, comm);
@@ -316,7 +313,7 @@ int MPIX_Alltoallv_x(const void *sendbuf, const MPI_Count sendcounts[], const MP
                      MPI_Comm comm)
 {
     method_t method = P2P;
-    return BigMPI_Collective(ALLTOALLV, method,
+    return PersColl_Collective(ALLTOALLV, method,
                              sendbuf, -1 /* sendcount */, sendcounts, sdispls, sendtype, NULL,
                              recvbuf, -1 /* recvcount */, recvcounts, rdispls, recvtype, NULL,
                              -1 /* root */, comm);
@@ -327,7 +324,7 @@ int MPIX_Alltoallw_x(const void *sendbuf, const MPI_Count sendcounts[], const MP
                      MPI_Comm comm)
 {
     method_t method = P2P;
-    return BigMPI_Collective(ALLTOALLW, method,
+    return PersColl_Collective(ALLTOALLW, method,
                              sendbuf, -1 /* sendcount */, sendcounts, sdispls, MPI_DATATYPE_NULL, sendtypes,
                              recvbuf, -1 /* recvcount */, recvcounts, rdispls, MPI_DATATYPE_NULL, recvtypes,
                              -1 /* root */, comm);

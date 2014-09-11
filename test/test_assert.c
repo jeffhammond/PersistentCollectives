@@ -7,7 +7,7 @@
 #include <assert.h>
 
 #include <mpi.h>
-#include "bigmpi.h"
+#include "perscoll.h"
 
 int main(int argc, char ** argv)
 {

@@ -10,7 +10,7 @@ foreach(test ${TESTS})
   set(TARGET_RUN_UNIT_TEST run_${executable})
 
   add_executable(${TARGET_UNIT_TEST_EXE} ${test})
-  target_link_libraries(${TARGET_UNIT_TEST_EXE} bigmpi m ${MPI_LIBRARIES})
+  target_link_libraries(${TARGET_UNIT_TEST_EXE} perscoll m ${MPI_LIBRARIES})
 
   set(exclude_list "test_assert")
   list(FIND exclude_list "${executable}" found)
