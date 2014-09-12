@@ -16,6 +16,8 @@
 
 #include "likely.h"
 
+void * safemalloc(size_t bytes);
+
 void PersColl_Error_impl(const char *file, const int line, const char *func, const char *msg, ...);
 
 #define PersColl_Error(...) PersColl_Error_impl(__FILE__,__LINE__,__func__,__VA_ARGS__)

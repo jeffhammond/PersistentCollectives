@@ -12,7 +12,7 @@ noinst_LTLIBRARIES = libperscolli.la
 libperscoll_la_SOURCES = 	src/coll.c \
 							src/vcoll.c \
 							src/ncoll.c \
-							src/testwait.c \
+							src/starttestwait.c \
 							src/utils.c
 
 libperscoll_la_LDFLAGS = -version-info $(libperscoll_abi_version)

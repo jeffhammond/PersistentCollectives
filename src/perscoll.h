@@ -5,10 +5,11 @@
 
 typedef void* PCMPI_Request;
 
+int PCMPI_Start(PCMPI_Request *request);
 int PCMPI_Test(PCMPI_Request *request, int * flag, MPI_Status *status);
 int PCMPI_Wait(PCMPI_Request *request, MPI_Status *status);
 
-/* TODO PCMPI_{Test,Wait}{all,any,some} */
+/* TODO PCMPI_{Start,Test,Wait}{all,any,some} */
 
 int PCMPI_Request_free(PCMPI_Request *request);
 

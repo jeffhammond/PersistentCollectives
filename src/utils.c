@@ -1,5 +1,15 @@
 #include "internal.h"
 
+void * safemalloc(size_t bytes)
+{
+    void * ptr = NULL;
+    int rc = posix_memalign(&ptr, 8, bytes);
+    if (rc!=0 || ptr==NULL) {
+        PersColl_Error("Out-of-memory error for %zu bytes.\n", bytes);
+    }
+    return ptr;
+}
+
 /* Raise an internal fatal PersColl error.
  *
  * @param[in] file Current file name (__FILE__)
