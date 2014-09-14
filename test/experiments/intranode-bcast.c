@@ -21,6 +21,7 @@ int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
 
     int disp; /* unused */
     MPI_Win_shared_query(wintemp, nrank, &winsize, &disp, &temp);
+    printf("%d: temp=%p\n", nrank, temp);
 
     MPI_Win_lock_all(0, wintemp);
 
