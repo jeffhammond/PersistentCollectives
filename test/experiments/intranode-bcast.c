@@ -18,6 +18,7 @@ int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
     void * temp = NULL;
     MPI_Win wintemp = MPI_WIN_NULL;
     MPI_Win_allocate_shared(winsize, ts, MPI_INFO_NULL, MPI_COMM_NODE, &temp, &wintemp);
+    MPI_Win_lock_all(0, wintemp);
 
     if (nrank==0) {
         memcpy(temp, buffer, (size_t)count*ts);
@@ -27,6 +28,7 @@ int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
         memcpy(buffer, temp, (size_t)count*ts);
     }
 
+    MPI_Win_unlock_all(wintemp);
     MPI_Win_free(&wintemp);
     return MPI_SUCCESS;
 }
