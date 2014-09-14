@@ -1,4 +1,4 @@
-CC     = mpicc
+CC    := mpicc
 CFLAGS = -g -O2 -Wall -std=c99
 
 TESTS = intranode-bcast
