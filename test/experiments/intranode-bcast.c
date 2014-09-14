@@ -52,17 +52,19 @@ int main(int argc, char* argv[])
 
     double t0, t1, dt;
 
-    t0 = MPI_Wtime();
-    MPI_Bcast(buf1, n, MPI_CHAR, 0, MPI_COMM_NODE);
-    t1 = MPI_Wtime();
-    dt = t1-t0;
-    printf("MPI_Bcast: %lf seconds, %lf MB/s \n", dt, n*(1.e-6/dt));
+    for (int r=0; r<20; r++) {
+        t0 = MPI_Wtime();
+        MPI_Bcast(buf1, n, MPI_CHAR, 0, MPI_COMM_NODE);
+        t1 = MPI_Wtime();
+        dt = t1-t0;
+        printf("MPI_Bcast: %lf seconds, %lf MB/s \n", dt, n*(1.e-6/dt));
 
-    t0 = MPI_Wtime();
-    SMP_Bcast(buf2, n, MPI_CHAR, 0, MPI_COMM_NODE);
-    t1 = MPI_Wtime();
-    dt = t1-t0;
-    printf("SMP_Bcast: %lf seconds, %lf MB/s \n", dt, n*(1.e-6/dt));
+        t0 = MPI_Wtime();
+        SMP_Bcast(buf2, n, MPI_CHAR, 0, MPI_COMM_NODE);
+        t1 = MPI_Wtime();
+        dt = t1-t0;
+        printf("SMP_Bcast: %lf seconds, %lf MB/s \n", dt, n*(1.e-6/dt));
+    }
 
     MPI_Free_mem(&buf2);
     MPI_Free_mem(&buf1);
