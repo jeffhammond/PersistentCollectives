@@ -3,6 +3,8 @@
 #include <string.h>
 #include <mpi.h>
 
+#define DEBUG
+
 MPI_Comm MPI_COMM_NODE;
 MPI_Win wincache;
 char * ptrcache;
@@ -92,24 +94,30 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
 int main(int argc, char* argv[])
 {
     MPI_Init(&argc,&argv);
+    int n = (argc>1) ? atoi(argv[1]) : 1000;
 
     int wrank, wsize;
     MPI_Comm_rank(MPI_COMM_WORLD, &wrank);
     MPI_Comm_size(MPI_COMM_WORLD, &wsize);
 
-    int nrank, nsize;
-    MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &MPI_COMM_NODE);
 
+    int nrank, nsize;
+    MPI_Comm_rank(MPI_COMM_NODE, &nrank);
+    MPI_Comm_size(MPI_COMM_NODE, &nsize);
+
+#ifdef DEBUG
+    if (wrank==0) {
+        printf("MPI vs. SMP bcast of %d bytes\n", n);
+        printf("world size = %d, node size = %d\n", wsize, nsize);
+    }
     char procname[MPI_MAX_PROCESSOR_NAME];
     int len;
     MPI_Get_processor_name(procname, &len);
     printf("rank %d is %s\n", wrank, procname);
-
-    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &MPI_COMM_NODE);
-
-    int n = (argc>1) ? atoi(argv[1]) : 1000;
-
-    MPI_Comm_size(MPI_COMM_WORLD, &nsize);
+    MPI_Barrier(MPI_COMM_WORLD);
+    fflush(stdout);
+#endif
 
     char * buf1 = NULL;
     char * buf2 = NULL;
