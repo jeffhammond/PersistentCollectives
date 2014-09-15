@@ -5,7 +5,7 @@
 
 MPI_Comm MPI_COMM_NODE;
 MPI_Win wincache;
-void * ptrcache;
+char * ptrcache;
 int cachebytes;
 
 int SMP_Setup_cache(int bytes)
@@ -16,8 +16,8 @@ int SMP_Setup_cache(int bytes)
     cachebytes = bytes;
 
     MPI_Aint winsize = (nrank==0) ? bytes : 0;
-    void * ptrcache = NULL;
-    MPI_Win_allocate_shared(winsize, ts, MPI_INFO_NULL, MPI_COMM_NODE, &ptrcache, &wincache);
+    char * local = NULL;
+    MPI_Win_allocate_shared(winsize, 1, MPI_INFO_NULL, MPI_COMM_NODE, &local, &wincache);
 
     int disp; /* unused */
     MPI_Win_shared_query(wincache, 0, &winsize, &disp, &ptrcache);
@@ -33,7 +33,7 @@ int SMP_Destroy_cache(void)
     return MPI_SUCCESS;
 }
 
-int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm)
+int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm)
 {
     int nrank = -1;
     MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
@@ -42,21 +42,34 @@ int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
     int ts = 0;
     MPI_Type_size(datatype, &ts);
 
-    MPI_Aint winsize = (nrank==0) ? count * ts : 0;
-    void * ptrcache = NULL;
-    MPI_Win wincache = MPI_WIN_NULL;
-    MPI_Win_allocate_shared(winsize, ts, MPI_INFO_NULL, MPI_COMM_NODE, &ptrcache, &wincache);
-
-    void * ptrcache = NULL;
-    int disp; /* unused */
-    MPI_Win_shared_query(wincache, 0, &winsize, &disp, &ptrcache);
-
-    if (nrank==0) {
-        memcpy(ptrcache, buffer, (size_t)count*ts);
-    }
-    MPI_Win_sync(wincache);
-    if (nrank!=0) {
-        memcpy(buffer, ptrcache, (size_t)count*ts);
+    size_t bytes = count*ts;
+    if (bytes<=cachebytes) {
+        if (nrank==0) {
+            memcpy(ptrcache, buffer, bytes);
+        }
+        MPI_Win_sync(wincache);
+        if (nrank!=0) {
+            memcpy(buffer, ptrcache, bytes);
+        }
+    } else {
+        size_t c = (size_t)(bytes/cachebytes);
+        size_t r = (size_t)(bytes%cachebytes);
+        for (size_t i=0; i<c; i++) {
+            if (nrank==0) {
+                memcpy(ptrcache, &(buffer[i*cachebytes]), cachebytes);
+            }
+            MPI_Win_sync(wincache);
+            if (nrank!=0) {
+                memcpy(&(buffer[i*cachebytes]), ptrcache, cachebytes);
+            }
+        }
+        if (nrank==0) {
+            memcpy(ptrcache, &(buffer[c*cachebytes]), bytes);
+        }
+        MPI_Win_sync(wincache);
+        if (nrank!=0) {
+            memcpy(&(buffer[c*cachebytes]), ptrcache, r);
+        }
     }
     return MPI_SUCCESS;
 }
@@ -81,6 +94,9 @@ int main(int argc, char* argv[])
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf1);
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf2);
 
+    SMP_Setup_cache(8*1024*1024);
+    MPI_Barrier(MPI_COMM_WORLD);
+
     double t0, t1, dt;
     for (int r=0; r<20; r++) {
         MPI_Barrier(MPI_COMM_WORLD);
@@ -99,6 +115,8 @@ int main(int argc, char* argv[])
         printf("%d: SMP_Bcast: %lf seconds, %lf MB/s \n", wrank, dt, n*(1.e-6/dt));
         fflush(stdout);
     }
+
+    SMP_Destroy_cache();
 
     MPI_Free_mem(buf1);
     MPI_Free_mem(buf2);
