@@ -8,6 +8,8 @@ MPI_Win wincache;
 char * ptrcache;
 int cachebytes;
 
+const int reps = 20;
+
 int SMP_Setup_cache(int bytes)
 {
     int nrank = -1;
@@ -36,17 +38,27 @@ int SMP_Destroy_cache(void)
 int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm)
 {
     int nrank = -1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
+    MPI_Comm_rank(comm, &nrank);
+
+#ifndef DEBUG
+    int nsize = 0;
+    MPI_Comm_size(comm, &nsize);
+    /* fast path for trivial case */
+    if (nsize==1) return MPI_SUCCESS;
+#endif
 
     /* Type_size only works for types without holes. */
     int ts = 0;
     MPI_Type_size(datatype, &ts);
+
+    MPI_Aint flag = (MPI_Aint)buffer;
 
     size_t bytes = count*ts;
     if (bytes<=cachebytes) {
         if (nrank==0) {
             memcpy(ptrcache, buffer, bytes);
         }
+        MPI_Bcast(&flag, 1, MPI_AINT, 0, comm);
         MPI_Win_sync(wincache);
         if (nrank!=0) {
             memcpy(buffer, ptrcache, bytes);
@@ -58,14 +70,17 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
             if (nrank==0) {
                 memcpy(ptrcache, &(buffer[i*cachebytes]), cachebytes);
             }
+            MPI_Bcast(&flag, 1, MPI_AINT, 0, comm); /* Faster than Barrier? */
             MPI_Win_sync(wincache);
             if (nrank!=0) {
                 memcpy(&(buffer[i*cachebytes]), ptrcache, cachebytes);
             }
+            MPI_Barrier(comm); /* Should be faster than MPI_Reduce... */
         }
         if (nrank==0) {
             memcpy(ptrcache, &(buffer[c*cachebytes]), bytes);
         }
+        MPI_Bcast(&flag, 1, MPI_AINT, 0, comm); /* Faster than Barrier? */
         MPI_Win_sync(wincache);
         if (nrank!=0) {
             memcpy(&(buffer[c*cachebytes]), ptrcache, r);
@@ -94,25 +109,64 @@ int main(int argc, char* argv[])
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf1);
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf2);
 
+    memset(buf1, nrank==0 ? 'Z' : 'A', n);
+    memset(buf2, nrank==0 ? 'Z' : 'A', n);
+
     SMP_Setup_cache(8*1024*1024);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    double t0, t1, dt;
-    for (int r=0; r<20; r++) {
+    double t0, t1, dtmpi = 0.0, dtsmp = 0.0;
+    for (int r=0; r<reps; r++) {
+
         MPI_Barrier(MPI_COMM_WORLD);
         t0 = MPI_Wtime();
         MPI_Bcast(buf1, n, MPI_CHAR, 0, MPI_COMM_NODE);
         t1 = MPI_Wtime();
-        dt = t1-t0;
-        printf("%d: MPI_Bcast: %lf seconds, %lf MB/s \n", wrank, dt, n*(1.e-6/dt));
-        fflush(stdout);
+        if (r>1) dtmpi += (t1-t0);
 
         MPI_Barrier(MPI_COMM_WORLD);
         t0 = MPI_Wtime();
         SMP_Bcast(buf2, n, MPI_CHAR, 0, MPI_COMM_NODE);
         t1 = MPI_Wtime();
-        dt = t1-t0;
-        printf("%d: SMP_Bcast: %lf seconds, %lf MB/s \n", wrank, dt, n*(1.e-6/dt));
+        if (r>1) dtsmp += (t1-t0);
+
+        if (r==0) {
+            char * tmp = malloc(n);
+            memset(tmp, 'Z', n);
+            int err1 = memcmp(tmp, buf1, n);
+            int err2 = memcmp(tmp, buf2, n);
+            if (err1>0 || err2>0) {
+                printf("%d: errors: MPI (%d), SMP (%d) \n", wrank, err1, err2);
+                for (int i=0; i<n; i++) {
+                    printf("%d: %d \'%c\' \'%c\' (\'%c\')\n", wrank, i, buf1[i], buf2[i], tmp[i]);
+                }
+                SMP_Destroy_cache();
+                MPI_Finalize();
+                return 1;
+            }
+            free(tmp);
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    double dtavg, dtmin, dtmax;
+    MPI_Reduce(&dtmpi, &dtavg, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_NODE);
+    MPI_Reduce(&dtmpi, &dtmin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_NODE);
+    MPI_Reduce(&dtmpi, &dtmax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_NODE);
+    if (nrank==0) {
+        dtavg /= nsize;
+        printf("%d: %s (%lf,%lf,%lf) seconds (%lf,%lf,%lf) MB/s (min,avg,max) \n",
+                wrank, "MPI", dtmin, dtavg, dtmax,
+                (reps-2)*n*(1.e-6/dtmax), (reps-2)*n*(1.e-6/dtavg), (reps-2)*n*(1.e-6/dtmin));
+        fflush(stdout);
+    }
+    MPI_Reduce(&dtsmp, &dtavg, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_NODE);
+    MPI_Reduce(&dtsmp, &dtmin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_NODE);
+    MPI_Reduce(&dtsmp, &dtmax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_NODE);
+    if (nrank==0) {
+        dtavg /= nsize;
+        printf("%d: %s (%lf,%lf,%lf) seconds (%lf,%lf,%lf) MB/s (min,avg,max) \n",
+                wrank, "SMP", dtmin, dtavg, dtmax,
+                (reps-2)*n*(1.e-6/dtmax), (reps-2)*n*(1.e-6/dtavg), (reps-2)*n*(1.e-6/dtmin));
         fflush(stdout);
     }
 

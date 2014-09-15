@@ -8,7 +8,14 @@ MPI_Comm MPI_COMM_NODE;
 int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm)
 {
     int nrank = -1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
+    MPI_Comm_rank(comm, &nrank);
+
+#ifndef DEBUG
+    int nsize = 0;
+    MPI_Comm_size(comm, &nsize);
+    /* fast path for trivial case */
+    if (nsize==1) return MPI_SUCCESS;
+#endif
 
     /* Type_size only works for types without holes. */
     int ts = 0;
@@ -17,7 +24,7 @@ int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
     MPI_Aint winsize = (nrank==0) ? count * ts : 0;
     void * local = NULL;
     MPI_Win wintemp = MPI_WIN_NULL;
-    MPI_Win_allocate_shared(winsize, ts, MPI_INFO_NULL, MPI_COMM_NODE, &local, &wintemp);
+    MPI_Win_allocate_shared(winsize, ts, MPI_INFO_NULL, comm, &local, &wintemp);
 
     void * remote = NULL;
     int disp; /* unused */
@@ -57,6 +64,9 @@ int main(int argc, char* argv[])
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf1);
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf2);
 
+    memset(buf1, nrank==0 ? 'Z' : 'A', n);
+    memset(buf2, nrank==0 ? 'Z' : 'A', n);
+
     double t0, t1, dt;
     for (int r=0; r<20; r++) {
         MPI_Barrier(MPI_COMM_WORLD);
@@ -74,6 +84,16 @@ int main(int argc, char* argv[])
         dt = t1-t0;
         printf("%d: SMP_Bcast: %lf seconds, %lf MB/s \n", wrank, dt, n*(1.e-6/dt));
         fflush(stdout);
+
+        if (r==0) {
+            char * tmp = malloc(n);
+            memset(tmp, 'Z', n);
+            int err1 = memcmp(tmp, buf1, n);
+            int err2 = memcmp(tmp, buf2, n);
+            if (err1>0 || err2>0) {
+                printf("%d: errors: MPI (%d), SMP (%d) \n", wrank, err1, err2);
+            }
+        }
     }
 
     MPI_Free_mem(buf1);
