@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf2);
 
     double t0, t1, dt;
-    for (int r=0; r<2; r++) {
+    for (int r=0; r<20; r++) {
         MPI_Barrier(MPI_COMM_WORLD);
         t0 = MPI_Wtime();
         MPI_Bcast(buf1, n, MPI_CHAR, 0, MPI_COMM_NODE);
