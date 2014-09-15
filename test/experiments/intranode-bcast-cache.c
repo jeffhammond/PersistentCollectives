@@ -92,9 +92,6 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
 int main(int argc, char* argv[])
 {
     MPI_Init(&argc,&argv);
-    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &MPI_COMM_NODE);
-
-    int n = (argc>1) ? atoi(argv[1]) : 1000;
 
     int wrank, wsize;
     MPI_Comm_rank(MPI_COMM_WORLD, &wrank);
@@ -102,6 +99,16 @@ int main(int argc, char* argv[])
 
     int nrank, nsize;
     MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
+
+    char procname[MPI_MAX_PROCESSOR_NAME];
+    int len;
+    MPI_Get_processor_name(procname, &len);
+    printf("rank %d is %s\n", wrank, procname);
+
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &MPI_COMM_NODE);
+
+    int n = (argc>1) ? atoi(argv[1]) : 1000;
+
     MPI_Comm_size(MPI_COMM_WORLD, &nsize);
 
     char * buf1 = NULL;
