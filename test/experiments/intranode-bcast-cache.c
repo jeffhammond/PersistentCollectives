@@ -12,6 +12,15 @@ int cachebytes;
 
 const int reps = 200;
 
+static void * nt_memcpy(char * out, const char * in, size_t n)
+{
+    #pragma vector nontemporal
+    for (size_t i=0; i<n; i++) {
+        out[i] = in[i];
+    }
+    return out;
+}
+
 int SMP_Setup_cache(int bytes)
 {
     int nrank = -1;
@@ -58,12 +67,15 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
     size_t bytes = count*ts;
     if (bytes<=cachebytes) {
         if (nrank==0) {
+            /* nontemporal is very bad here */
             memcpy(ptrcache, buffer, bytes);
         }
         MPI_Bcast(&flag, 1, MPI_AINT, 0, comm);
         MPI_Win_sync(wincache);
         if (nrank!=0) {
+            /* nontemporal has no effect here */
             memcpy(buffer, ptrcache, bytes);
+            //nt_memcpy(buffer, ptrcache, bytes);
         }
     } else {
         int c = (int)(bytes/cachebytes);
@@ -76,7 +88,7 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
             MPI_Bcast(&flag, 1, MPI_AINT, 0, comm); /* Faster than Barrier? */
             MPI_Win_sync(wincache);
             if (nrank!=0) {
-                memcpy(&(buffer[i*cachebytes]), ptrcache, cachebytes);
+                nt_memcpy(&(buffer[i*cachebytes]), ptrcache, cachebytes);
             }
             MPI_Barrier(comm); /* Should be faster than MPI_Reduce... */
         }
@@ -86,7 +98,7 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
         MPI_Bcast(&flag, 1, MPI_AINT, 0, comm); /* Faster than Barrier? */
         MPI_Win_sync(wincache);
         if (nrank!=0) {
-            memcpy(&(buffer[c*cachebytes]), ptrcache, r);
+            nt_memcpy(&(buffer[c*cachebytes]), ptrcache, r);
         }
     }
     return MPI_SUCCESS;
