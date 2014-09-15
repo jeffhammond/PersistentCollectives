@@ -7,33 +7,32 @@ MPI_Comm MPI_COMM_NODE;
 
 int SMP_Bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm)
 {
+    int nrank = -1;
+    MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
+
     /* Type_size only works for types without holes. */
     int ts = 0;
     MPI_Type_size(datatype, &ts);
 
-    int nrank = -1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
-
     MPI_Aint winsize = (nrank==0) ? count * ts : 0;
-    void * temp = NULL;
+    void * local = NULL;
     MPI_Win wintemp = MPI_WIN_NULL;
-    MPI_Win_allocate_shared(winsize, ts, MPI_INFO_NULL, MPI_COMM_NODE, &temp, &wintemp);
+    MPI_Win_allocate_shared(winsize, ts, MPI_INFO_NULL, MPI_COMM_NODE, &local, &wintemp);
 
+    void * remote = NULL;
     int disp; /* unused */
-    MPI_Win_shared_query(wintemp, nrank, &winsize, &disp, &temp);
-    printf("%d: temp=%p\n", nrank, temp);
+    MPI_Win_shared_query(wintemp, 0, &winsize, &disp, &remote);
 
     MPI_Win_lock_all(0, wintemp);
-
     if (nrank==0) {
-        memcpy(temp, buffer, (size_t)count*ts);
+        memcpy(local, buffer, (size_t)count*ts);
     }
     MPI_Win_sync(wintemp);
     if (nrank!=0) {
-        memcpy(buffer, temp, (size_t)count*ts);
+        memcpy(buffer, remote, (size_t)count*ts);
     }
-
     MPI_Win_unlock_all(wintemp);
+
     MPI_Win_free(&wintemp);
     return MPI_SUCCESS;
 }
@@ -53,13 +52,13 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &nrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nsize);
 
-    char *buf1 = NULL, *buf2 = NULL;
+    char * buf1 = NULL;
+    char * buf2 = NULL;
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf1);
     MPI_Alloc_mem(n, MPI_INFO_NULL, &buf2);
 
     double t0, t1, dt;
-
-    for (int r=0; r<20; r++) {
+    for (int r=0; r<2; r++) {
         MPI_Barrier(MPI_COMM_WORLD);
         t0 = MPI_Wtime();
         MPI_Bcast(buf1, n, MPI_CHAR, 0, MPI_COMM_NODE);
@@ -77,8 +76,8 @@ int main(int argc, char* argv[])
         fflush(stdout);
     }
 
-    MPI_Free_mem(&buf2);
-    MPI_Free_mem(&buf1);
+    MPI_Free_mem(buf1);
+    MPI_Free_mem(buf2);
 
     MPI_Comm_free(&MPI_COMM_NODE);
 
