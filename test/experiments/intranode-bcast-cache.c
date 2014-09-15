@@ -10,7 +10,7 @@ MPI_Win wincache;
 char * ptrcache;
 int cachebytes;
 
-const int reps = 20;
+const int reps = 200;
 
 int SMP_Setup_cache(int bytes)
 {
@@ -66,9 +66,10 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
             memcpy(buffer, ptrcache, bytes);
         }
     } else {
-        size_t c = (size_t)(bytes/cachebytes);
-        size_t r = (size_t)(bytes%cachebytes);
-        for (size_t i=0; i<c; i++) {
+        int c = (int)(bytes/cachebytes);
+        int r = (int)(bytes%cachebytes);
+        MPI_Barrier(comm);
+        for (int i=0; i<c; i++) {
             if (nrank==0) {
                 memcpy(ptrcache, &(buffer[i*cachebytes]), cachebytes);
             }
@@ -80,7 +81,7 @@ int SMP_Bcast(char* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm
             MPI_Barrier(comm); /* Should be faster than MPI_Reduce... */
         }
         if (nrank==0) {
-            memcpy(ptrcache, &(buffer[c*cachebytes]), bytes);
+            memcpy(ptrcache, &(buffer[c*cachebytes]), r);
         }
         MPI_Bcast(&flag, 1, MPI_AINT, 0, comm); /* Faster than Barrier? */
         MPI_Win_sync(wincache);
