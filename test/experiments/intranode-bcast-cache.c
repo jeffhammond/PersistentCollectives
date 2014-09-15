@@ -107,9 +107,14 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_NODE, &nrank);
     MPI_Comm_size(MPI_COMM_NODE, &nsize);
 
+    char * vartmp = getenv("SMP_CACHE_SIZE");
+    int inttmp = (vartmp==NULL) ? 8*1024*1024 : atoi(vartmp);
+    SMP_Setup_cache(inttmp);
+    MPI_Barrier(MPI_COMM_WORLD);
+
 #ifdef DEBUG
     if (wrank==0) {
-        printf("MPI vs. SMP bcast of %d bytes\n", n);
+        printf("MPI vs. SMP bcast of %d bytes (cache size = %d bytes)\n", n, inttmp);
         printf("world size = %d, node size = %d\n", wsize, nsize);
     }
     char procname[MPI_MAX_PROCESSOR_NAME];
@@ -127,9 +132,6 @@ int main(int argc, char* argv[])
 
     memset(buf1, nrank==0 ? 'Z' : 'A', n);
     memset(buf2, nrank==0 ? 'Z' : 'A', n);
-
-    SMP_Setup_cache(8*1024*1024);
-    MPI_Barrier(MPI_COMM_WORLD);
 
     double t0, t1, dtmpi = 0.0, dtsmp = 0.0;
     for (int r=0; r<reps; r++) {
